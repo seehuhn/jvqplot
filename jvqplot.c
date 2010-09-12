@@ -1,6 +1,19 @@
-/* jvqplot.c - very simple data plotting
+/* jvqplot.c - very simple data file plotting
  *
- * Copyright (C) 2010  Jochen Voss.
+ * Copyright (C) 2010  Jochen Voss
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #ifdef HAVE_CONFIG_H
@@ -13,8 +26,8 @@
 #include <gtk/gtk.h>
 
 
-GtkWidget *window, *drawing_area;
-double xdpi = -1, ydpi;
+static GtkWidget *window, *drawing_area;
+static double xdpi = -1, ydpi;
 
 /**********************************************************************
  * auxiliary functions
@@ -166,8 +179,8 @@ jvqplot_error_quark (void)
 
 
 static double *
-read_data_file(GDataInputStream *in,
-	       int *rows_ret, int *cols_ret, GError **err_ret)
+parse_data_file(GDataInputStream *in,
+		int *rows_ret, int *cols_ret, GError **err_ret)
 {
   GError *err = NULL;
   int result_used = 0;
@@ -432,20 +445,21 @@ static void
 read_data(GFile *file)
 {
   GError *err = NULL;
-  GFileInputStream *in;
-  GDataInputStream *inn;
   double *data;
   int  rows, cols;
 
-  in = g_file_read(file, NULL, &err);
+  GFileInputStream *in = g_file_read(file, NULL, &err);
   if (err) {
     update_message(err->message);
     g_clear_error(&err);
     return;
   }
-  inn = g_data_input_stream_new(G_INPUT_STREAM(in));
-  data = read_data_file(inn, &rows, &cols, &err);
+  GDataInputStream *inn = g_data_input_stream_new(G_INPUT_STREAM(in));
+  g_object_unref(in);
+
+  data = parse_data_file(inn, &rows, &cols, &err);
   g_input_stream_close(G_INPUT_STREAM(inn), NULL, NULL);
+  g_object_unref(inn);
 
   if (err) {
     g_free(data);
@@ -488,8 +502,25 @@ int
 main(int argc, char **argv)
 {
   GError *err = NULL;
+  gboolean gui;
 
-  gtk_init(&argc, &argv);
+  GOptionEntry entries[] = {
+    { NULL, '\0', 0, 0, NULL, NULL, NULL }
+  };
+  gui = gtk_init_with_args(&argc, &argv,
+			   "datafile",
+			   entries,
+			   NULL,
+			   &err);
+  if (err) {
+    fprintf(stderr, "%s\n", err->message);
+    g_clear_error(&err);
+    return 1;
+  }
+  if (! gui) {
+    fprintf(stderr, "cannot initialise GTK+\n");
+    return 1;
+  }
 
   if (argc<2) {
     fprintf(stderr, "error: no data file given\n");
@@ -509,6 +540,9 @@ main(int argc, char **argv)
 
   window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
   gtk_window_set_default_size(GTK_WINDOW(window), 800, 600);
+  gchar *window_title = g_strconcat("jvqplot: ", argv[1], NULL);
+  gtk_window_set_title(GTK_WINDOW(window), window_title);
+  g_free(window_title);
   g_signal_connect(window, "destroy", G_CALLBACK(destroy), NULL);
 
   drawing_area = gtk_drawing_area_new();
@@ -517,9 +551,8 @@ main(int argc, char **argv)
 		   G_CALLBACK(expose_event_callback), NULL);
 
   gtk_container_add(GTK_CONTAINER(window), drawing_area);
-  gtk_widget_show(drawing_area);
-  gtk_widget_show(window);
 
+  gtk_widget_show_all(window);
   gtk_main();
 
   return 0;
