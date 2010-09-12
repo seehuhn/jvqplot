@@ -24,81 +24,6 @@
 #include <math.h>
 
 #include <gtk/gtk.h>
-
-
-static GtkWidget *window, *drawing_area;
-static double xdpi = -1, ydpi;
-
-/**********************************************************************
- * auxiliary functions
- */
-
-static double
-log_mod(double x, double *base)
-/* This function returns `x', scaled by a signed power of ten
- * (`base'), such that the result fullfills `1 <= result < 10' and
- * `x=result*base'.  */
-{
-  double  s, tmp, y;
-
-  g_assert(x != 0);
-  s = (x>0) ? 1 : -1;
-
-  tmp = floor(log10(s*x));
-  *base = s*pow(10, tmp);
-  y = x / *base;
-  g_assert(1<=y && y<10);
-
-  return  y;
-}
-
-static double
-stepsize(double w, int *mult_ret)
-{
-  double  base, frac, size;
-
-  g_assert(w>0);
-  frac = log_mod(w, &base);
-  if (frac < 2) {
-    frac = 1;
-    *mult_ret = 5;
-  } else if (frac < 2.5) {
-    frac = 2;
-    *mult_ret = 5;
-  } else if (frac < 5) {
-    frac = 2.5;
-    *mult_ret = 4;
-  } else {
-    frac = 5;
-    *mult_ret = 5;
-  }
-  size = frac * base;
-
-  g_assert(size <= w && 2*size > w);
-  return  size;
-}
-
-static void
-normalize(double a, double b, double d,
-	  double *aa, double *bb, double *dd, int *mult_ret)
-/* Input is an interval `[a;b]' and a minimal tick distance `d'.  The
- * function computes an interval `[aa,bb]' which contains `[a,b]' and
- * a tick distance `dd', such that `dd>=d' and `aa' and `bb' are integer
- * multiples of `dd'.  */
-{
-  double  unit, tmpa, tmpb;
-
-  g_assert(b>a && d>0);
-
-  unit = stepsize(2*d, mult_ret);
-  tmpa = ((int)(a/unit)-1)*unit;
-  tmpb = ((int)(b/unit)+1)*unit;
-  *aa = floor(a/unit) * unit;
-  *bb = ceil(b/unit) * unit;
-  *dd = unit;
-
-  g_assert(*aa<=a && *bb>=b && *dd>=d);
-}
 
 /**********************************************************************
  * store the data values
@@ -106,8 +31,8 @@ normalize(double a, double b, double d,
 
 struct status {
   double *data;
-  double min[2], max[2];
   int rows, cols;
+  double min[2], max[2];
   gchar *message;
 };
 struct status status_rec = {
@@ -167,7 +92,155 @@ update_data(double *data, int rows, int cols)
 
   update_message(NULL);
 }
+
+/**********************************************************************
+ * graph layout handling
+ */
 
+static double xdpi = -1, ydpi;
+
+static double
+log_mod(double x, double *base)
+/* This function returns `x', scaled by a signed power of ten
+ * (`base'), such that the result fullfills `1 <= result < 10' and
+ * `x=result*base'.  */
+{
+  double  s, tmp, y;
+
+  g_assert(x != 0);
+  s = (x>0) ? 1 : -1;
+
+  tmp = floor(log10(s*x));
+  *base = s*pow(10, tmp);
+  y = x / *base;
+  g_assert(1<=y && y<10);
+
+  return  y;
+}
+
+static double
+stepsize(double w, int *mult_ret)
+{
+  double  base, frac, size;
+
+  g_assert(w>0);
+
+  frac = log_mod(2*w, &base);
+  if (frac < 2) {
+    frac = 1;
+    *mult_ret = 5;
+  } else if (frac < 2.5) {
+    frac = 2;
+    *mult_ret = 5;
+  } else if (frac < 5) {
+    frac = 2.5;
+    *mult_ret = 4;
+  } else {
+    frac = 5;
+    *mult_ret = 5;
+  }
+  size = frac * base;
+
+  g_assert(w < size && size <= 2*w);
+  return  size;
+}
+
+static void
+normalize(double a, double b, double d, double *aa, double *bb)
+/* Input is an interval `[a;b]' and a tick distance `d'.  The function
+ * computes an interval `[aa,bb]' which contains `[a,b]' such that
+ * `aa' and `bb' are integer multiples of `dd'.  */
+{
+  double  tmpa, tmpb;
+
+  g_assert(b>a && d>0);
+
+  tmpa = ((int)(a/d)-1)*d;
+  tmpb = ((int)(b/d)+1)*d;
+  *aa = floor(a/d) * d;
+  *bb = ceil(b/d) * d;
+
+  g_assert(*aa<=a && *bb>=b);
+}
+
+struct layout {
+  double ax, ay, bx, by;
+  double dx, dy;
+  int xmult, ymult;
+};
+
+struct layout *
+new_layout(int w_pix, int h_pix, double xdpi, double ydpi,
+	   double xmin, double xmax, double ymin, double ymax)
+{
+  /* physical layout dimensions */
+  double w_phys = w_pix/xdpi;
+  double h_phys = h_pix/ydpi;
+  double tgap_phys = 7/72.27;
+  double rgap_phys = 7/72.27;
+  double bgap_phys = (h_phys>1) ? 20/72.27 : 7/72.27;
+  double lgap_phys = (w_phys>1.5) ? .5 : 7/72.27;
+
+  /* grid spacing */
+  double n_xlab = (w_phys-lgap_phys-rgap_phys)*2.54; /* <= 1 grid line / cm */
+  double n_ylab = (h_phys-tgap_phys-bgap_phys)*2.54;
+  double x0, x1, dx, y0, y1, dy, xscale, yscale, dz, scale;
+  int xmult, ymult;
+  dx = stepsize((xmax-xmin)/n_xlab, &xmult);
+  dy = stepsize((ymax-ymin)/n_ylab, &ymult);
+
+  /* check whether 1:1 aspect ratio is acceptable */
+  dz = MAX(dx, dy);
+  normalize(xmin, xmax, dz, &x0, &x1);
+  normalize(ymin, ymax, dz, &y0, &y1);
+  xscale = (w_phys-lgap_phys-rgap_phys) / (x1-x0);
+  yscale = (h_phys-tgap_phys-bgap_phys) / (y1-y0);
+  scale = MIN(xscale, yscale);
+  if (scale*(x1-x0) >= .2*w_phys && scale*(y1-y0) >= .1*h_phys) {
+    /* yes, we can use 1:1 */
+    if (dx >= dy) {
+      dy = dx;
+      ymult = xmult;
+    } else {
+      dx = dy;
+      xmult = ymult;
+    }
+    xscale = yscale = scale;
+  } else {
+    /* no, use independent scales */
+    normalize(xmin, xmax, dx, &x0, &x1);
+    normalize(ymin, ymax, dy, &y0, &y1);
+    xscale = (w_phys-lgap_phys-rgap_phys) / (x1-x0);
+    yscale = (h_phys-tgap_phys-bgap_phys) / (y1-y0);
+  }
+
+  double xpos = (w_phys-lgap_phys-rgap_phys-xscale*(x1-x0))/2 + lgap_phys;
+  double ypos = (h_phys-tgap_phys-bgap_phys-yscale*(y1-y0))/2 + bgap_phys;
+
+  struct layout *L = g_new(struct layout, 1);
+  L->ax = xscale*xdpi;
+  L->bx = (xpos - x0*xscale)*xdpi;
+  L->dx = dx;
+  L->xmult = xmult;
+  L->ay = -yscale*ydpi;
+  L->by = h_pix - (ypos - y0*yscale)*ydpi;
+  L->dy = dy;
+  L->ymult = ymult;
+
+  return L;
+}
+
+static void
+delete_layout(struct layout *L)
+{
+  g_free(L);
+}
+
+/**********************************************************************
+ * GTK+ related functions
+ */
+
+static GtkWidget *window, *drawing_area;
 
 #define JVQPLOT_ERROR jvqplot_error_quark ()
 static GQuark
@@ -266,7 +339,7 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
     GdkScreen *screen = gtk_window_get_screen(GTK_WINDOW(window));
     xdpi = gdk_screen_get_width(screen)/gdk_screen_get_width_mm(screen)*25.4;
     ydpi = gdk_screen_get_height(screen)/gdk_screen_get_height_mm(screen)*25.4;
-    if (xdpi < 50 || xdpi > 300 || ydpi < 50 || ydpi > 300) {
+    if (xdpi < 50 || xdpi > 350 || ydpi < 50 || ydpi > 350) {
       xdpi = ydpi = 100;
     }
   }
@@ -281,64 +354,45 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
   if (! status->data)
     goto draw_message;
 
-  double lgap = .5;
-  double bgap = 20/72.27;
-
-  double  n_xlab = (width/xdpi-lgap-14/72.27)*2.54; /* <= 1 grid line / cm */
-  double  n_ylab = (height/ydpi-bgap-14/72.27)*2.54;
-  double  xmin, xmax, dx, ymin, ymax, dy;
-  int  xmult, ymult;
-  normalize(status->min[0], status->max[0],
-	    (status->max[0]-status->min[0])/n_xlab,
-	    &xmin, &xmax, &dx, &xmult);
-  normalize(status->min[1], status->max[1],
-	    (status->max[1]-status->min[1])/n_ylab,
-	    &ymin, &ymax, &dy, &ymult);
-
-  double xscale = (width/xdpi-lgap-14/72.27)/(xmax-xmin); /* inch / x-unit */
-  double yscale = (height/ydpi-bgap-14/72.27)/(ymax-ymin); /* inch / y-unit */
-  if (yscale > xscale && yscale < 10*xscale) yscale = xscale;
-  if (xscale > yscale && xscale < 10*yscale) xscale = yscale;
-
-  double xoffs = (width/xdpi-lgap - xscale*(xmax-xmin))/2+lgap; /* inch */
-  double yoffs = (height/ydpi-bgap - yscale*(ymax-ymin))/2+bgap; /* inch */
+  struct layout *L = new_layout(width, height, xdpi, ydpi,
+				status->min[0], status->max[0],
+				status->min[1], status->max[1]);
 
   cairo_set_line_width(cr, 1);
   cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);
-  for (i=ceil((xmin-xoffs/xscale)/dx); ; ++i) {
-    double wx = ((i*dx-xmin)*xscale+xoffs)*xdpi;
+  for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
+    double wx = L->ax*i*L->dx + L->bx;
     if (wx > width) break;
-
+    if (i%L->xmult == 0) continue;
     wx = floor(wx) + .5;
     cairo_move_to(cr, wx, 0);
     cairo_line_to(cr, wx, height);
   }
-  for (i=ceil((ymin-yoffs/yscale)/dy); ; ++i) {
-    double wy = height - ((i*dy-ymin)*yscale+yoffs)*ydpi;
+  for (i=ceil((height-L->by)/L->ay/L->dy); ; ++i) {
+    double wy = L->ay*i*L->dy + L->by;
     if (wy < 0) break;
-
+    if (i%L->ymult == 0) continue;
     wy = floor(wy) + .5;
     cairo_move_to(cr, 0, wy);
     cairo_line_to(cr, width, wy);
   }
   cairo_stroke(cr);
+
   cairo_set_line_width(cr, 2);
   cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
-  for (i=ceil((xmin-xoffs/xscale)/dx); ; ++i) {
-    double wx = ((i*dx-xmin)*xscale+xoffs)*xdpi;
+  for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
+    double wx = L->ax*i*L->dx + L->bx;
     if (wx > width) break;
-    if (i % xmult) continue;
-
-    wx = round(wx);
+    if (i%L->xmult) continue;
+    wx = floor(wx) + .5;
     cairo_move_to(cr, wx, 0);
     cairo_line_to(cr, wx, height);
   }
-  for (i=ceil((ymin-yoffs/yscale)/dy); ; ++i) {
-    double wy = height - ((i*dy-ymin)*yscale+yoffs)*ydpi;
+  for (i=ceil((height-L->by)/L->ay/L->dy); ; ++i) {
+    double wy = L->ay*i*L->dy + L->by;
     if (wy < 0) break;
-    if (i % ymult) continue;
-
-    wy = round(wy);
+    if (i%L->ymult) continue;
+    wy = floor(wy) + .5;
     cairo_move_to(cr, 0, wy);
     cairo_line_to(cr, width, wy);
   }
@@ -347,12 +401,14 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
   cairo_select_font_face(cr, "sans-serif",
 			 CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
   cairo_set_font_size(cr, 12.0);
-  for (i=ceil((xmin-xoffs/xscale)/dx); ; ++i) {
-    char buffer[32];
-    double wx = ((i*dx-xmin)*xscale+xoffs)*xdpi;
+  for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
+    double wx = L->ax*i*L->dx + L->bx;
     if (wx > width) break;
-    if (i % xmult) continue;
-    snprintf(buffer, 32, "%g", i*dx);
+    if (i%L->xmult) continue;
+    wx = floor(wx) + .5;
+
+    char buffer[32];
+    snprintf(buffer, 32, "%g", i*L->dx);
 
     cairo_text_extents_t te;
     cairo_text_extents(cr, buffer, &te);
@@ -367,12 +423,14 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
     cairo_move_to(cr, xpos, height-8);
     cairo_show_text(cr, buffer);
   }
-  for (i=ceil((ymin-yoffs/yscale)/dy); ; ++i) {
-    char buffer[32];
-    double wy = height - ((i*dy-ymin)*yscale+yoffs)*ydpi;
+  for (i=ceil((height-L->by)/L->ay/L->dy); ; ++i) {
+    double wy = L->ay*i*L->dy + L->by;
     if (wy < 0) break;
-    if (i % ymult) continue;
-    snprintf(buffer, 32, "%g", i*dy);
+    if (i%L->ymult) continue;
+    wy = floor(wy) + .5;
+
+    char buffer[32];
+    snprintf(buffer, 32, "%g", i*L->dy);
 
     cairo_text_extents_t te;
     cairo_text_extents(cr, buffer, &te);
@@ -394,8 +452,8 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
   for (i=0; i<status->rows; ++i) {
     double x = status->data[i*status->cols];
     double y = status->data[i*status->cols+1];
-    double wx = ((x-xmin)*xscale+xoffs)*xdpi;
-    double wy = height - ((y-ymin)*yscale+yoffs)*ydpi;
+    double wx = L->ax*x + L->bx;
+    double wy = L->ay*y + L->by;
     if (i == 0) {
       cairo_move_to(cr, wx, wy);
     } else {
@@ -409,8 +467,8 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
   for (i=0; i<status->rows; ++i) {
     double x = status->data[i*status->cols];
     double y = status->data[i*status->cols+1];
-    double wx = ((x-xmin)*xscale+xoffs)*xdpi;
-    double wy = height - ((y-ymin)*yscale+yoffs)*ydpi;
+    double wx = L->ax*x + L->bx;
+    double wy = L->ay*y + L->by;
     if (i == 0) {
       cairo_move_to(cr, wx, wy);
     } else {
@@ -419,12 +477,16 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
   }
   cairo_stroke(cr);
 
+  delete_layout(L);
+
  draw_message:
   if (status->message) {
-    cairo_text_extents_t te;
+    cairo_select_font_face(cr, "sans-serif",
+			   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_size(cr, 24.0);
-    cairo_text_extents(cr, status->message, &te);
 
+    cairo_text_extents_t te;
+    cairo_text_extents(cr, status->message, &te);
     double xpos = xdpi/2.54 - te.x_bearing;
     double ypos = ydpi/2.54 - te.y_bearing;
     cairo_rectangle(cr, xpos+te.x_bearing-2, ypos+te.y_bearing-2,
