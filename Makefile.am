@@ -3,6 +3,8 @@
 
 AM_CPPFLAGS = $(GTK_CFLAGS)
 
+dist_man_MANS = jvqplot.1
+
 bin_PROGRAMS = jvqplot
 jvqplot_SOURCES = jvqplot.c
 jvqplot_LDADD = $(GTK_LIBS)

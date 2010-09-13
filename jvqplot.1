@@ -1,0 +1,61 @@
+.\" jvqplot.1 - a very simple plotting program
+.\" Copyright (C) 2010 Jochen Voss
+.de URL
+\\$2 \(laURL: \\$1 \(ra\\$3
+..
+.if \n[.g] .mso www.tmac
+.TH jvqplot 1 "September 14 2010" "voss" "jvqplot user\'s manual"
+.SH NAME
+jvqplot \- a very simple plotting program
+.SH SYNOPSIS
+.B jvqplot
+.RI [ options ]
+.I datafile
+.SH DESCRIPTION
+.B Jvqplot 
+is a plotting program, resembling a simplified version of
+.BR gnuplot .
+It is very simple to use, but it can only plot simple data files.
+The format and scaling of the plot is automatically chosen and cannot
+be changed.
+.PP
+The input file must consists of numbers, arranged in columns.
+Once started,
+.B jvqplot
+monitors its input file and refreshes the plot every time the data in
+the file changes.
+.PP
+Clicking with the right mouse button opens a popup menu, which allows
+to quit the program (keyboard shortcut
+.BR "control-q" )
+and to print the current plot (keyboard shortcut
+.BR "control-p" ).
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show a short help message and exit.
+.TP
+.BR \-v ", " \-\-version
+Display the program\'s version information and exit.
+.SH NOTES
+The program
+.B jvqplot
+was implemented by
+.MT voss@seehuhn.de
+Jochen Voss
+.ME ,
+who would be happy to receive feedback about the program.
+.PP
+.B Jvqplot
+is free software and you are allowed to redistribute it under the
+terms of the
+.URL "http://gnu.org/licenses/gpl.html" "GNU GPL version 3 or later" .
+.PP
+The current version of the program can always be found on the
+.URL "http://seehuhn.de/pages/jvqplot" "jvqplot home page" .
+.SH SEE ALSO
+.BR gnuplot (1)
+
+.\" Local Variables:
+.\" mode: nroff
+.\" End:

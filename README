@@ -1,0 +1,20 @@
+jvqplot - a very simple plotting program
+
+
+   Jvqplot is a plotting program, resembling a simplified version of
+gnuplot.  It is very simple to use, but it can only plot simple data
+files.  The format and scaling of the plot is automatically chosen and
+cannot be changed.
+
+   Generic installation instructions are in the file INSTALL, you will
+need the GTK+ library in order to compile the program.  A short manual
+is contained in the included manual page jvqplot.1.
+
+   Jvqplot comes with NO WARRANTY, to the extent permitted by law.
+You may redistribute copies of jvqplot under the terms of the GNU
+General Public License.  For more information about these matters,
+read the file COPYING of the source code distribution.
+
+   Please mail any suggestions and bug reports to Jochen Voss
+<voss@seehuhn.de>.  Your message should include the jvqplot version
+number, as obtained by the command 'jvqplot -v'.

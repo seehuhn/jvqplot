@@ -25,6 +25,10 @@
 
 #include <gtk/gtk.h>
 
+
+#define _(str) str
+
+
 static GtkWidget *window, *drawing_area;
 
 /**********************************************************************
@@ -351,7 +355,7 @@ static struct {
 };
 
 static void
-draw_graph(cairo_t *cr, struct layout *L)
+draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
 {
   int i, j;
 
@@ -367,7 +371,7 @@ draw_graph(cairo_t *cr, struct layout *L)
     double wx = L->ax*i*L->dx + L->bx;
     if (wx > L->width) break;
     if (i%L->xmult == 0) continue;
-    wx = floor(wx) + .5;
+    if (is_screen) wx = floor(wx) + .5;
     cairo_move_to(cr, wx, 0);
     cairo_line_to(cr, wx, L->height);
   }
@@ -375,7 +379,7 @@ draw_graph(cairo_t *cr, struct layout *L)
     double wy = L->ay*i*L->dy + L->by;
     if (wy < 0) break;
     if (i%L->ymult == 0) continue;
-    wy = floor(wy) + .5;
+    if (is_screen) wy = floor(wy) + .5;
     cairo_move_to(cr, 0, wy);
     cairo_line_to(cr, L->width, wy);
   }
@@ -387,7 +391,7 @@ draw_graph(cairo_t *cr, struct layout *L)
     double wx = L->ax*i*L->dx + L->bx;
     if (wx > L->width) break;
     if (i%L->xmult) continue;
-    wx = floor(wx) + .5;
+    if (is_screen) wx = floor(wx) + .5;
     cairo_move_to(cr, wx, 0);
     cairo_line_to(cr, wx, L->height);
   }
@@ -395,7 +399,7 @@ draw_graph(cairo_t *cr, struct layout *L)
     double wy = L->ay*i*L->dy + L->by;
     if (wy < 0) break;
     if (i%L->ymult) continue;
-    wy = floor(wy) + .5;
+    if (is_screen) wy = floor(wy) + .5;
     cairo_move_to(cr, 0, wy);
     cairo_line_to(cr, L->width, wy);
   }
@@ -408,7 +412,7 @@ draw_graph(cairo_t *cr, struct layout *L)
     double wx = L->ax*i*L->dx + L->bx;
     if (wx > L->width) break;
     if (i%L->xmult) continue;
-    wx = floor(wx) + .5;
+    if (is_screen) wx = floor(wx) + .5;
 
     char buffer[32];
     snprintf(buffer, 32, "%g", i*L->dx);
@@ -430,7 +434,7 @@ draw_graph(cairo_t *cr, struct layout *L)
     double wy = L->ay*i*L->dy + L->by;
     if (wy < 0) break;
     if (i%L->ymult) continue;
-    wy = floor(wy) + .5;
+    if (is_screen) wy = floor(wy) + .5;
 
     char buffer[32];
     snprintf(buffer, 32, "%g", i*L->dy);
@@ -484,7 +488,7 @@ draw_graph(cairo_t *cr, struct layout *L)
   }
 
  draw_message:
-  if (status->message) {
+  if (status->message && is_screen) {
     cairo_select_font_face(cr, "sans-serif",
 			   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_size(cr, 24.0);
@@ -537,12 +541,12 @@ print_page(GtkPrintOperation *operation, GtkPrintContext *ctx,
   }
 
   struct layout *L = new_layout(width, height, xres, yres, x0, x1, y0, y1);
-  draw_graph(cr, L);
+  draw_graph(cr, L, FALSE);
   delete_layout(L);
 }
 
 static void
-print_action(void)
+print_action(GtkAction *action, gpointer data)
 {
   if (! status->data)  return;
 
@@ -691,7 +695,7 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
 		   status->min[0], status->max[0],
 		   status->min[1], status->max[1]);
   }
-  draw_graph(cr, L);
+  draw_graph(cr, L, TRUE);
 
   cairo_destroy(cr);
   return TRUE;
@@ -749,7 +753,7 @@ data_changed_cb(GFileMonitor *monitor, GFile *file, GFile *other_file,
 }
 
 static void
-destroy(GtkWidget *widget, gpointer data)
+quit_cb(GtkWidget *widget, gpointer data)
 {
   gtk_main_quit();
 }
@@ -765,9 +769,17 @@ popup_cb(GtkWidget *widget, GdkEventButton *event, gpointer data)
   return TRUE;
 }
 
+static void
+home_action(GtkAction *action, gpointer data)
+{
+  gtk_show_uri(NULL, "http://seehuhn.de/pages/jvqplot",
+	       GDK_CURRENT_TIME, NULL);
+}
+
 static const gchar *menu_def =
   "<ui>"
   "  <popup name=\"MainMenu\">"
+  "    <menuitem name=\"Home\" action=\"HomeAction\" />"
   "    <menuitem name=\"Print\" action=\"PrintAction\" />"
   "    <menuitem name=\"Quit\" action=\"QuitAction\" />"
   "  </popup>"
@@ -780,14 +792,17 @@ define_menu(void)
 
   static GtkActionEntry entries[] = {
     /* name, stock id, label, accelerator, tooltip, callback */
-    { "PrintAction", NULL, "_Print", "<control>P", "Print",
-      G_CALLBACK(print_action) },
-    { "QuitAction", GTK_STOCK_QUIT, "_Quit", "<control>Q", "Quit",
-      G_CALLBACK(gtk_main_quit) }
+    { "HomeAction", NULL, _("Visit _Home Page"), NULL,
+      _("open the jvqplot homepage in a web browser"),
+      G_CALLBACK(home_action) },
+    { "PrintAction", GTK_STOCK_PRINT, _("_Print"), "<control>P",
+      _("print the current graph"), G_CALLBACK(print_action) },
+    { "QuitAction", GTK_STOCK_QUIT, _("_Quit"), "<control>Q",
+      _("quit the program"), G_CALLBACK(quit_cb) }
   };
   static guint n_entries = G_N_ELEMENTS (entries);
 
-  GtkActionGroup *action_group = gtk_action_group_new("JVQPActions");
+  GtkActionGroup *action_group = gtk_action_group_new("jvqplot");
   gtk_action_group_add_actions(action_group, entries, n_entries, NULL);
 
   GtkUIManager *menu_manager = gtk_ui_manager_new();
@@ -813,37 +828,49 @@ main(int argc, char **argv)
   GError *err = NULL;
   gboolean gui;
 
+  gboolean version_flag;
   GOptionEntry entries[] = {
+    { "version", 'v', 0, G_OPTION_ARG_NONE, &version_flag,
+      "Show version information", NULL },
     { NULL, '\0', 0, 0, NULL, NULL, NULL }
   };
-  gui = gtk_init_with_args(&argc, &argv,
-			   "datafile",
-			   entries,
-			   NULL,
-			   &err);
+  gui = gtk_init_with_args(&argc, &argv, "datafile", entries, NULL, &err);
   if (err) {
     fprintf(stderr, "%s\n", err->message);
     g_clear_error(&err);
-    return 1;
+    exit(1);
   }
   if (! gui) {
     fprintf(stderr, "cannot initialise GTK+\n");
-    return 1;
+    exit(1);
   }
+  if (version_flag) {
+    puts("jvqplot " VERSION);
+    puts("Copyright(C) 2010 Jochen Voss <voss@seehuhn.de>");
+    puts("License GPLv3+: GNU GPL version 3 or later "
+	 "<http://gnu.org/licenses/gpl.html>");
 
+    puts("This is free software: you are free to change "
+	 "and redistribute it.");
+    puts("There is NO WARRANTY, to the extent permitted by law.");
+    exit(0);
+  }
   if (argc<2) {
     fprintf(stderr, "error: no data file given\n");
-    return 1;
+    exit(1);
+  } else if (argc>2) {
+    fprintf(stderr, "error: too many arguments\n");
+    exit(1);
   }
+
   GFile *data_file = g_file_new_for_commandline_arg(argv[1]);
   read_data(data_file);
-
   GFileMonitor *monitor = g_file_monitor(data_file, 0, NULL, &err);
   g_object_unref(data_file);
   if (err) {
     fprintf(stderr, "error: cannot monitor file: %s\n", err->message);
     g_clear_error(&err);
-    return 1;
+    exit(1);
   }
   g_signal_connect(monitor, "changed", G_CALLBACK(data_changed_cb), NULL);
 
@@ -852,7 +879,7 @@ main(int argc, char **argv)
   gchar *window_title = g_strconcat("jvqplot: ", argv[1], NULL);
   gtk_window_set_title(GTK_WINDOW(window), window_title);
   g_free(window_title);
-  g_signal_connect(window, "destroy", G_CALLBACK(destroy), NULL);
+  g_signal_connect(window, "destroy", G_CALLBACK(quit_cb), NULL);
 
   drawing_area = gtk_drawing_area_new();
   gtk_widget_set_size_request(drawing_area, 100, 100);
