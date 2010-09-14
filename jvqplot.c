@@ -203,7 +203,7 @@ new_layout(int w_pix, int h_pix, double xres, double yres,
   xscale = (w_phys-lgap_phys-rgap_phys) / (x1-x0);
   yscale = (h_phys-tgap_phys-bgap_phys) / (y1-y0);
   scale = MIN(xscale, yscale);
-  if (scale*(xmax-xmin) >= .2*w_phys && scale*(ymax-ymin) >= .1*h_phys) {
+  if (scale*(xmax-xmin) >= .6*w_phys && scale*(ymax-ymin) >= .2*h_phys) {
     /* yes, we can use 1:1 */
     if (dx >= dy) {
       dy = dx;
@@ -685,7 +685,7 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
     if (L->width != width || L->height != height
 	|| x0 < 0 || x0 > width || y0 < 0 || y0 > height
 	|| x1 < 0 || x1 > width || y1 < 0 || y1 > height
-	|| x1-x0 < .2*width || y0-y1 < .1*height) {
+	|| x1-x0 < .6*width || y0-y1 < .2*height) {
       delete_layout(L);
       L = NULL;
     }
