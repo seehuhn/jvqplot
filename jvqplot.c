@@ -85,10 +85,12 @@ update_data(double *data, int rows, int cols)
       status->min[j] -= 1;
       status->max[j] += 1;
     }
-    if (status->min[j] > 0 && 2*status->min[j] <= status->max[j]) {
+    if (status->min[j] > 0 && 4*status->min[j] <= status->max[j]) {
+      /* at most extend the horizontal range by anoth 33.3% */
       status->min[j] = 0;
     }
     if (status->max[j] < 0 && 2*status->max[j] >= status->min[j]) {
+      /* at most double the vertical range */
       status->max[j] = 0;
     }
   }
