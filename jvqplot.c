@@ -367,6 +367,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
   if (! status->data)
     goto draw_message;
 
+  /* minor grid lines */
   cairo_set_line_width(cr, 1);
   cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);
   for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
@@ -387,6 +388,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
   }
   cairo_stroke(cr);
 
+  /* major grid lines */
   cairo_set_line_width(cr, 2);
   cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
   for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
@@ -407,6 +409,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
   }
   cairo_stroke(cr);
 
+  /* grid labels */
   cairo_select_font_face(cr, "sans-serif",
 			 CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
   cairo_set_font_size(cr, 12.0);
@@ -423,6 +426,10 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
     cairo_text_extents(cr, buffer, &te);
 
     double xpos = wx - te.x_bearing - .5*te.width;
+    if (xpos+te.x_bearing+te.width+2 > L->width) {
+      /* make sure the right-most label is visible */
+      xpos = L->width-te.x_bearing-te.width-2;
+    }
     cairo_rectangle(cr, xpos+te.x_bearing-2, L->height-8+te.y_bearing-2,
 		    te.width+4, te.height+4);
     cairo_set_source_rgba(cr, 1, 1, 1, .8);
@@ -454,42 +461,60 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
     cairo_show_text(cr, buffer);
   }
 
+  /* graphs for the data */
   for (j=1; j<status->cols; ++j) {
-    cairo_set_line_width(cr, 6);
-    cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
     cairo_set_source_rgba(cr, 1, 1, 1, .5);
-    for (i=0; i<status->rows; ++i) {
-      double x = status->data[i*status->cols];
-      double y = status->data[i*status->cols+j];
-      double wx = L->ax*x + L->bx;
-      double wy = L->ay*y + L->by;
-      if (i == 0) {
-	cairo_move_to(cr, wx, wy);
-      } else {
-	cairo_line_to(cr, wx, wy);
-      };
+    if (status->rows == 1) {
+      double x = status->data[0];
+      double y = status->data[j];
+      cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 6, 0, 2*M_PI);
+      cairo_close_path(cr);
+      cairo_fill(cr);
+    } else {
+      cairo_set_line_width(cr, 6);
+      cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+      cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+      for (i=0; i<status->rows; ++i) {
+	double x = status->data[i*status->cols];
+	double y = status->data[i*status->cols+j];
+	double wx = L->ax*x + L->bx;
+	double wy = L->ay*y + L->by;
+	if (i == 0) {
+	  cairo_move_to(cr, wx, wy);
+	} else {
+	  cairo_line_to(cr, wx, wy);
+	};
+      }
+      cairo_stroke(cr);
     }
-    cairo_stroke(cr);
 
     int ci = (j-1)%100;
-    cairo_set_line_width(cr, 2);
     cairo_set_source_rgb(cr, colors[ci].r, colors[ci].g, colors[ci].b);
-    for (i=0; i<status->rows; ++i) {
-      double x = status->data[i*status->cols];
-      double y = status->data[i*status->cols+j];
-      double wx = L->ax*x + L->bx;
-      double wy = L->ay*y + L->by;
-      if (i == 0) {
-	cairo_move_to(cr, wx, wy);
-      } else {
-	cairo_line_to(cr, wx, wy);
-      };
+    if (status->rows == 1) {
+      double x = status->data[0];
+      double y = status->data[j];
+      cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 4, 0, 2*M_PI);
+      cairo_close_path(cr);
+      cairo_fill(cr);
+    } else {
+      cairo_set_line_width(cr, 2);
+      for (i=0; i<status->rows; ++i) {
+	double x = status->data[i*status->cols];
+	double y = status->data[i*status->cols+j];
+	double wx = L->ax*x + L->bx;
+	double wy = L->ay*y + L->by;
+	if (i == 0) {
+	  cairo_move_to(cr, wx, wy);
+	} else {
+	  cairo_line_to(cr, wx, wy);
+	};
+      }
+      cairo_stroke(cr);
     }
-    cairo_stroke(cr);
   }
 
  draw_message:
+  /* status messages */
   if (status->message && is_screen) {
     cairo_select_font_face(cr, "sans-serif",
 			   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
