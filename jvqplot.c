@@ -603,7 +603,8 @@ jvqplot_error_quark (void)
 {
   return g_quark_from_static_string ("jvqplot-error-quark");
 }
-#define JVQPLOT_ERROR_INPUT_DATA 1
+#define JVQPLOT_ERROR_CORRUPTED 1
+#define JVQPLOT_ERROR_INCOMPLETE 2
 
 
 static double *
@@ -627,8 +628,13 @@ parse_data_file(GDataInputStream *in,
     while (words[n]) ++n;
     if (cols == 0) {
       cols = n;
+    } else if (n < cols
+	       && g_buffered_input_stream_get_available(G_BUFFERED_INPUT_STREAM(in)) == 0) {
+      g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_INCOMPLETE,
+		  "incomplete input");
+      goto next_line;
     } else if (cols != n) {
-      g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_INPUT_DATA,
+      g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
 		  "invalid data (malformed matrix)");
       goto next_line;
     }
@@ -646,7 +652,7 @@ parse_data_file(GDataInputStream *in,
       char *endptr;
       double x = strtod(words[i], &endptr);
       if (*endptr) {
-	g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_INPUT_DATA,
+	g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
 		    "invalid data (malformed number)");
 	goto next_line;
       }
@@ -665,14 +671,16 @@ parse_data_file(GDataInputStream *in,
   }
 
   if (!err && result_used == 0) {
-    g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_INPUT_DATA,
+    g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
 		"no data found");
   }
 
   if (err) {
     g_propagate_error(err_ret, err);
-    g_free(result);
-    return NULL;
+    if (g_error_matches(err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED)) {
+      g_free(result);
+      return NULL;
+    }
   }
 
   result = g_renew(double, result, result_used);
@@ -748,12 +756,10 @@ read_data(GFile *file)
   g_input_stream_close(G_INPUT_STREAM(inn), NULL, NULL);
   g_object_unref(inn);
 
+  update_data(data, rows, cols);
   if (err) {
-    g_free(data);
     update_message(err->message);
     g_clear_error(&err);
-  } else {
-    update_data(data, rows, cols);
   }
 }
 
