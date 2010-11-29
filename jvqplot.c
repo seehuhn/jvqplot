@@ -64,9 +64,10 @@ update_data(double *data, int rows, int cols)
 {
   int  i, j;
 
+  if (! data) return;
+
   g_free(status->data);
   status->data = data;
-  if (! data) return;
 
   for (j=0; j<2; ++j) {
     status->min[j] = status->max[j] = data[j];
