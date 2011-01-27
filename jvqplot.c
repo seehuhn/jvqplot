@@ -160,12 +160,8 @@ normalize(double a, double b, double d, double *aa, double *bb)
  * computes an interval `[aa,bb]' which contains `[a,b]' such that
  * `aa' and `bb' are integer multiples of `dd'.  */
 {
-  double  tmpa, tmpb;
-
   g_assert(b>a && d>0);
 
-  tmpa = ((int)(a/d)-1)*d;
-  tmpb = ((int)(b/d)+1)*d;
   *aa = floor(a/d) * d;
   *bb = ceil(b/d) * d;
 
@@ -181,7 +177,7 @@ struct layout {
 
 struct layout *
 new_layout(int w_pix, int h_pix, double xres, double yres,
-	   double xmin, double xmax, double ymin, double ymax)
+           double xmin, double xmax, double ymin, double ymax)
 {
   /* physical layout dimensions */
   double w_phys = w_pix/xres;
@@ -412,7 +408,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
 
   /* grid labels */
   cairo_select_font_face(cr, "sans-serif",
-			 CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+                         CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
   cairo_set_font_size(cr, 12.0);
   for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
     double wx = L->ax*i*L->dx + L->bx;
@@ -432,7 +428,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
       xpos = L->width-te.x_bearing-te.width-2;
     }
     cairo_rectangle(cr, xpos+te.x_bearing-2, L->height-8+te.y_bearing-2,
-		    te.width+4, te.height+4);
+                    te.width+4, te.height+4);
     cairo_set_source_rgba(cr, 1, 1, 1, .8);
     cairo_fill(cr);
 
@@ -453,7 +449,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
     cairo_text_extents(cr, buffer, &te);
 
     cairo_rectangle(cr, 8+te.x_bearing-2, wy+4+te.y_bearing-2,
-		    te.width+4, te.height+4);
+                    te.width+4, te.height+4);
     cairo_set_source_rgba(cr, 1, 1, 1, .8);
     cairo_fill(cr);
 
@@ -476,15 +472,15 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
       cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
       cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
       for (i=0; i<status->rows; ++i) {
-	double x = status->data[i*status->cols];
-	double y = status->data[i*status->cols+j];
-	double wx = L->ax*x + L->bx;
-	double wy = L->ay*y + L->by;
-	if (i == 0) {
-	  cairo_move_to(cr, wx, wy);
-	} else {
-	  cairo_line_to(cr, wx, wy);
-	};
+        double x = status->data[i*status->cols];
+        double y = status->data[i*status->cols+j];
+        double wx = L->ax*x + L->bx;
+        double wy = L->ay*y + L->by;
+        if (i == 0) {
+          cairo_move_to(cr, wx, wy);
+        } else {
+          cairo_line_to(cr, wx, wy);
+        };
       }
       cairo_stroke(cr);
     }
@@ -500,15 +496,15 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
     } else {
       cairo_set_line_width(cr, 2);
       for (i=0; i<status->rows; ++i) {
-	double x = status->data[i*status->cols];
-	double y = status->data[i*status->cols+j];
-	double wx = L->ax*x + L->bx;
-	double wy = L->ay*y + L->by;
-	if (i == 0) {
-	  cairo_move_to(cr, wx, wy);
-	} else {
-	  cairo_line_to(cr, wx, wy);
-	};
+        double x = status->data[i*status->cols];
+        double y = status->data[i*status->cols+j];
+        double wx = L->ax*x + L->bx;
+        double wy = L->ay*y + L->by;
+        if (i == 0) {
+          cairo_move_to(cr, wx, wy);
+        } else {
+          cairo_line_to(cr, wx, wy);
+        };
       }
       cairo_stroke(cr);
     }
@@ -518,7 +514,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
   /* status messages */
   if (status->message && is_screen) {
     cairo_select_font_face(cr, "sans-serif",
-			   CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
+                           CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
     cairo_set_font_size(cr, 24.0);
 
     cairo_text_extents_t te;
@@ -526,7 +522,7 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
     double xpos = xres/2.54 - te.x_bearing;
     double ypos = yres/2.54 - te.y_bearing;
     cairo_rectangle(cr, xpos+te.x_bearing-2, ypos+te.y_bearing-2,
-		    te.width+4, te.height+4);
+                    te.width+4, te.height+4);
     cairo_set_source_rgba(cr, 1, 1, 1, .8);
     cairo_fill(cr);
 
@@ -544,7 +540,7 @@ static GtkPrintSettings *settings = NULL;
 
 static void
 print_page(GtkPrintOperation *operation, GtkPrintContext *ctx,
-	   gint page_nr, gpointer data)
+           gint page_nr, gpointer data)
 {
   gdouble width = gtk_print_context_get_width(ctx);
   gdouble height = gtk_print_context_get_height(ctx);
@@ -585,7 +581,7 @@ print_action(GtkAction *action, gpointer data)
 
   GtkPrintOperationResult res;
   res = gtk_print_operation_run(print, GTK_PRINT_OPERATION_ACTION_PRINT_DIALOG,
-				GTK_WINDOW(window), NULL);
+                                GTK_WINDOW(window), NULL);
   if (res == GTK_PRINT_OPERATION_RESULT_APPLY) {
     if (settings) g_object_unref(settings);
     settings = g_object_ref(gtk_print_operation_get_print_settings(print));
@@ -610,7 +606,7 @@ jvqplot_error_quark (void)
 
 static double *
 parse_data_file(GDataInputStream *in,
-		int *rows_ret, int *cols_ret, GError **err_ret)
+                int *rows_ret, int *cols_ret, GError **err_ret)
 {
   GError *err = NULL;
   int result_used = 0;
@@ -630,20 +626,20 @@ parse_data_file(GDataInputStream *in,
     if (cols == 0) {
       cols = n;
     } else if (n < cols
-	       && g_buffered_input_stream_get_available(G_BUFFERED_INPUT_STREAM(in)) == 0) {
+               && g_buffered_input_stream_get_available(G_BUFFERED_INPUT_STREAM(in)) == 0) {
       g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_INCOMPLETE,
-		  "incomplete input");
+                  "incomplete input");
       goto next_line;
     } else if (cols != n) {
       g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
-		  "invalid data (malformed matrix)");
+                  "invalid data (malformed matrix)");
       goto next_line;
     }
 
     if (cols == 1) {
       if (result_used >= result_allocated) {
-	result_allocated *= 2;
-	result = g_renew(double, result, result_allocated);
+        result_allocated *= 2;
+        result = g_renew(double, result, result_allocated);
       }
       result[result_used++] = rows+1;
     }
@@ -653,13 +649,13 @@ parse_data_file(GDataInputStream *in,
       char *endptr;
       double x = strtod(words[i], &endptr);
       if (*endptr) {
-	g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
-		    "invalid data (malformed number)");
-	goto next_line;
+        g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
+                    "invalid data (malformed number)");
+        goto next_line;
       }
       if (result_used >= result_allocated) {
-	result_allocated *= 2;
-	result = g_renew(double, result, result_allocated);
+        result_allocated *= 2;
+        result = g_renew(double, result, result_allocated);
       }
       result[result_used++] = x;
     }
@@ -673,7 +669,7 @@ parse_data_file(GDataInputStream *in,
 
   if (!err && result_used == 0) {
     g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
-		"no data found");
+                "no data found");
   }
 
   if (err) {
@@ -692,7 +688,7 @@ parse_data_file(GDataInputStream *in,
 
 static gboolean
 expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
-		      gpointer data)
+                      gpointer data)
 {
   int width = widget->allocation.width;
   int height = widget->allocation.height;
@@ -708,7 +704,7 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
 
   cairo_t *cr = gdk_cairo_create(event->window);
   cairo_rectangle(cr, event->area.x, event->area.y,
-		  event->area.width, event->area.height);
+                  event->area.width, event->area.height);
   cairo_clip(cr);
 
   static struct layout *L = NULL;
@@ -719,17 +715,17 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
     double x1 = L->ax*status->max[0]+L->bx;
     double y1 = L->ay*status->max[1]+L->by;
     if (L->width != width || L->height != height
-	|| x0 < 0 || x0 > width || y0 < 0 || y0 > height
-	|| x1 < 0 || x1 > width || y1 < 0 || y1 > height
-	|| x1-x0 < .6*width || y0-y1 < .2*height) {
+        || x0 < 0 || x0 > width || y0 < 0 || y0 > height
+        || x1 < 0 || x1 > width || y1 < 0 || y1 > height
+        || x1-x0 < .6*width || y0-y1 < .2*height) {
       delete_layout(L);
       L = NULL;
     }
   }
   if (status->data && !L) {
     L = new_layout(width, height, xres, yres,
-		   status->min[0], status->max[0],
-		   status->min[1], status->max[1]);
+                   status->min[0], status->max[0],
+                   status->min[1], status->max[1]);
   }
   draw_graph(cr, L, TRUE);
 
@@ -766,7 +762,7 @@ read_data(GFile *file)
 
 static void
 data_changed_cb(GFileMonitor *monitor, GFile *file, GFile *other_file,
-		GFileMonitorEvent event_type, gpointer data)
+                GFileMonitorEvent event_type, gpointer data)
 {
   switch (event_type) {
   case G_FILE_MONITOR_EVENT_CHANGED:
@@ -781,9 +777,9 @@ data_changed_cb(GFileMonitor *monitor, GFile *file, GFile *other_file,
     break;
   }
   gtk_widget_queue_draw_area(drawing_area,
-			     0, 0,
-			     drawing_area->allocation.width,
-			     drawing_area->allocation.height);
+                             0, 0,
+                             drawing_area->allocation.width,
+                             drawing_area->allocation.height);
 }
 
 static void
@@ -799,7 +795,7 @@ popup_cb(GtkWidget *widget, GdkEventButton *event, gpointer data)
   if (event->button != 3)
     return FALSE;
   gtk_menu_popup(popup_menu, NULL, NULL, NULL, NULL,
-		 event->button, event->time);
+                 event->button, event->time);
   return TRUE;
 }
 
@@ -807,7 +803,7 @@ static void
 home_action(GtkAction *action, gpointer data)
 {
   gtk_show_uri(NULL, "http://seehuhn.de/pages/jvqplot",
-	       GDK_CURRENT_TIME, NULL);
+               GDK_CURRENT_TIME, NULL);
 }
 
 static const gchar *menu_def =
@@ -848,12 +844,12 @@ define_menu(void)
     exit(1);
   }
   gtk_window_add_accel_group(GTK_WINDOW(window),
-			     gtk_ui_manager_get_accel_group(menu_manager));
+                             gtk_ui_manager_get_accel_group(menu_manager));
 
   GtkWidget *popup_menu = gtk_ui_manager_get_widget(menu_manager, "/MainMenu");
   gtk_widget_add_events(window, GDK_BUTTON_PRESS_MASK);
   g_signal_connect(G_OBJECT(window), "button_press_event",
-		   G_CALLBACK(popup_cb), popup_menu);
+                   G_CALLBACK(popup_cb), popup_menu);
 }
 
 int
@@ -882,10 +878,10 @@ main(int argc, char **argv)
     puts("jvqplot " VERSION);
     puts("Copyright(C) 2010 Jochen Voss <voss@seehuhn.de>");
     puts("License GPLv3+: GNU GPL version 3 or later "
-	 "<http://gnu.org/licenses/gpl.html>");
+         "<http://gnu.org/licenses/gpl.html>");
 
     puts("This is free software: you are free to change "
-	 "and redistribute it.");
+         "and redistribute it.");
     puts("There is NO WARRANTY, to the extent permitted by law.");
     exit(0);
   }
@@ -918,7 +914,7 @@ main(int argc, char **argv)
   drawing_area = gtk_drawing_area_new();
   gtk_widget_set_size_request(drawing_area, 100, 100);
   g_signal_connect(G_OBJECT(drawing_area), "expose_event",
-		   G_CALLBACK(expose_event_callback), NULL);
+                   G_CALLBACK(expose_event_callback), NULL);
   gtk_container_add(GTK_CONTAINER(window), drawing_area);
 
   define_menu();
