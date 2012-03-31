@@ -35,14 +35,19 @@ static GtkWidget *window, *drawing_area;
  * store the data values
  */
 
-struct status {
+struct dataset {
   double *data;
   int rows, cols;
+};
+struct status {
+  int dataset_used;
+  struct dataset *dataset;
   double min[2], max[2];
   gchar *message;
 };
 struct status status_rec = {
-  .data = NULL,
+  .dataset_used = 0,
+  .dataset = NULL,
   .message = NULL,
 };
 struct status *status = &status_rec;
@@ -60,24 +65,31 @@ update_message(const gchar *message)
 }
 
 static void
-update_data(double *data, int rows, int cols)
+update_data(int dataset_used, struct dataset *dataset)
 {
-  int  i, j;
+  int  i, j, k;
 
-  if (! data) return;
+  if (dataset_used == 0) return;
 
-  g_free(status->data);
-  status->data = data;
+  for (k=0; k<status->dataset_used; ++k) g_free(status->dataset[k].data);
+  g_free(status->dataset);
+  status->dataset_used = dataset_used;
+  status->dataset = dataset;
 
   for (j=0; j<2; ++j) {
-    status->min[j] = status->max[j] = data[j];
+    status->min[j] = status->max[j] = dataset[0].data[j];
   }
-  for (i=0; i<rows; ++i) {
-    for (j=0; j<cols; ++j) {
-      double x = data[i*cols+j];
-      int jj = j>1 ? 1 : j;
-      if (x < status->min[jj]) status->min[jj] = x;
-      if (x > status->max[jj]) status->max[jj] = x;
+  for (k=0; k<dataset_used; ++k) {
+    int rows = dataset[k].rows;
+    int cols = dataset[k].cols;
+    double *data = dataset[k].data;
+    for (i=0; i<rows; ++i) {
+      for (j=0; j<cols; ++j) {
+        double x = data[i*cols+j];
+        int jj = j>1 ? 1 : j;
+        if (x < status->min[jj]) status->min[jj] = x;
+        if (x > status->max[jj]) status->max[jj] = x;
+      }
     }
   }
 
@@ -95,9 +107,6 @@ update_data(double *data, int rows, int cols)
       status->max[j] = 0;
     }
   }
-
-  status->rows = rows;
-  status->cols = cols;
 
   update_message(NULL);
 }
@@ -356,12 +365,12 @@ static struct {
 static void
 draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
 {
-  int i, j;
+  int i, j, k;
 
   cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
   cairo_paint(cr);
 
-  if (! status->data)
+  if (! status->dataset_used)
     goto draw_message;
 
   /* minor grid lines */
@@ -459,54 +468,59 @@ draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
   }
 
   /* graphs for the data */
-  for (j=1; j<status->cols; ++j) {
-    cairo_set_source_rgba(cr, 1, 1, 1, .5);
-    if (status->rows == 1) {
-      double x = status->data[0];
-      double y = status->data[j];
-      cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 6, 0, 2*M_PI);
-      cairo_close_path(cr);
-      cairo_fill(cr);
-    } else {
-      cairo_set_line_width(cr, 6);
-      cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-      cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
-      for (i=0; i<status->rows; ++i) {
-        double x = status->data[i*status->cols];
-        double y = status->data[i*status->cols+j];
-        double wx = L->ax*x + L->bx;
-        double wy = L->ay*y + L->by;
-        if (i == 0) {
-          cairo_move_to(cr, wx, wy);
-        } else {
-          cairo_line_to(cr, wx, wy);
-        };
+  for (k=0; k<status->dataset_used; ++k) {
+    int cols = status->dataset[k].cols;
+    int rows = status->dataset[k].rows;
+    double *data = status->dataset[k].data;
+    for (j=1; j<cols; ++j) {
+      cairo_set_source_rgba(cr, 1, 1, 1, .5);
+      if (rows == 1) {
+        double x = data[0];
+        double y = data[j];
+        cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 6, 0, 2*M_PI);
+        cairo_close_path(cr);
+        cairo_fill(cr);
+      } else {
+        cairo_set_line_width(cr, 6);
+        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
+        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+        for (i=0; i<rows; ++i) {
+          double x = data[i*cols];
+          double y = data[i*cols+j];
+          double wx = L->ax*x + L->bx;
+          double wy = L->ay*y + L->by;
+          if (i == 0) {
+            cairo_move_to(cr, wx, wy);
+          } else {
+            cairo_line_to(cr, wx, wy);
+          };
+        }
+        cairo_stroke(cr);
       }
-      cairo_stroke(cr);
-    }
 
-    int ci = (j-1)%100;
-    cairo_set_source_rgb(cr, colors[ci].r, colors[ci].g, colors[ci].b);
-    if (status->rows == 1) {
-      double x = status->data[0];
-      double y = status->data[j];
-      cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 4, 0, 2*M_PI);
-      cairo_close_path(cr);
-      cairo_fill(cr);
-    } else {
-      cairo_set_line_width(cr, 2);
-      for (i=0; i<status->rows; ++i) {
-        double x = status->data[i*status->cols];
-        double y = status->data[i*status->cols+j];
-        double wx = L->ax*x + L->bx;
-        double wy = L->ay*y + L->by;
-        if (i == 0) {
-          cairo_move_to(cr, wx, wy);
-        } else {
-          cairo_line_to(cr, wx, wy);
-        };
+      int ci = (j-1)%100;
+      cairo_set_source_rgb(cr, colors[ci].r, colors[ci].g, colors[ci].b);
+      if (rows == 1) {
+        double x = data[0];
+        double y = data[j];
+        cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 4, 0, 2*M_PI);
+        cairo_close_path(cr);
+        cairo_fill(cr);
+      } else {
+        cairo_set_line_width(cr, 2);
+        for (i=0; i<rows; ++i) {
+          double x = data[i*cols];
+          double y = data[i*cols+j];
+          double wx = L->ax*x + L->bx;
+          double wy = L->ay*y + L->by;
+          if (i == 0) {
+            cairo_move_to(cr, wx, wy);
+          } else {
+            cairo_line_to(cr, wx, wy);
+          };
+        }
+        cairo_stroke(cr);
       }
-      cairo_stroke(cr);
     }
   }
 
@@ -572,7 +586,7 @@ print_page(GtkPrintOperation *operation, GtkPrintContext *ctx,
 static void
 print_action(GtkAction *action, gpointer data)
 {
-  if (! status->data)  return;
+  if (! status->dataset_used)  return;
 
   GtkPrintOperation *print = gtk_print_operation_new();
   if (settings) gtk_print_operation_set_print_settings(print, settings);
@@ -619,7 +633,8 @@ parse_data_file(GDataInputStream *in,
 
   while ((line = g_data_input_stream_read_line(in, NULL, NULL, &err))) {
     gchar **words = g_strsplit_set(line, " \t", 0);
-    if (! words[0] || words[0][0] == '#') goto next_line;
+    gboolean is_empty = ! words[0];
+    if (is_empty || words[0][0] == '#') goto next_line;
 
     int n = 0;
     while (words[n]) ++n;
@@ -636,6 +651,7 @@ parse_data_file(GDataInputStream *in,
       goto next_line;
     }
 
+    /* if there is only one column, prepend the index */
     if (cols == 1) {
       if (result_used >= result_allocated) {
         result_allocated *= 2;
@@ -665,11 +681,7 @@ parse_data_file(GDataInputStream *in,
     g_strfreev(words);
     g_free(line);
     if (err) break;
-  }
-
-  if (!err && result_used == 0) {
-    g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
-                "no data found");
+    if (is_empty && n>0) break;
   }
 
   if (err) {
@@ -709,7 +721,7 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
 
   static struct layout *L = NULL;
 
-  if (status->data && L) {
+  if (status->dataset_used && L) {
     double x0 = L->ax*status->min[0]+L->bx;
     double y0 = L->ay*status->min[1]+L->by;
     double x1 = L->ax*status->max[0]+L->bx;
@@ -722,7 +734,7 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
       L = NULL;
     }
   }
-  if (status->data && !L) {
+  if (status->dataset_used && !L) {
     L = new_layout(width, height, xres, yres,
                    status->min[0], status->max[0],
                    status->min[1], status->max[1]);
@@ -737,7 +749,9 @@ static void
 read_data(GFile *file)
 {
   GError *err = NULL;
-  double *data;
+  int dataset_used = 0;
+  int dataset_allocated = 4;
+  struct dataset *dataset = g_new(struct dataset, dataset_allocated);
   int  rows, cols;
 
   GFileInputStream *in = g_file_read(file, NULL, &err);
@@ -749,11 +763,27 @@ read_data(GFile *file)
   GDataInputStream *inn = g_data_input_stream_new(G_INPUT_STREAM(in));
   g_object_unref(in);
 
-  data = parse_data_file(inn, &rows, &cols, &err);
+  double *data;
+  while ((data = parse_data_file(inn, &rows, &cols, &err))) {
+    if (dataset_used >= dataset_allocated) {
+      dataset_allocated *= 2;
+      dataset = g_renew(struct dataset, dataset, dataset_allocated);
+    }
+    dataset[dataset_used].data = data;
+    dataset[dataset_used].rows = rows;
+    dataset[dataset_used].cols = cols;
+    dataset_used += 1;
+    if (err) break;
+  }
+  if (dataset_used == 0) {
+    g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
+                "no data found");
+  }
+
   g_input_stream_close(G_INPUT_STREAM(inn), NULL, NULL);
   g_object_unref(inn);
 
-  update_data(data, rows, cols);
+  update_data(dataset_used, dataset);
   if (err) {
     update_message(err->message);
     g_clear_error(&err);
