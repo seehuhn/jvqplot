@@ -1,0 +1,101 @@
+commit e3acf6fa6413283a1d7ff8bf8e7166df58271fc4
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Sat Mar 31 13:10:01 2012 +0100
+
+    allow for several data sets per input file (separated by blank lines)
+
+commit 1849e8efea5657f5775e60184d9d672b1af855c7
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Thu Jan 27 15:58:09 2011 +0000
+
+    doc fixes
+
+commit cd3105e2ccc0811b93aa8b61fad5e2253befcbfb
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Thu Jan 27 15:57:55 2011 +0000
+
+    remove two unused variables (found by clang)
+
+commit dde350754d66a91d733a72822498dd55bee2fc25
+Merge: 04c0fbb d842e72
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Mon Nov 29 21:33:45 2010 +0000
+
+    Merge branch 'master' of seehuhn.de:/srv/git/jvqplot
+
+commit 04c0fbbe849eeaa79442b53b1d2d6755f2835c4f
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Mon Nov 29 21:33:22 2010 +0000
+
+    cosmetic fix
+
+commit d842e7238f62d9a336ef7298448b1d9f65c1c88c
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Wed Oct 6 18:57:38 2010 +0100
+
+    don't remove the plot when the data file goes empty
+
+commit 8d4725c6843c376aa30774792c47ba67eacc112a
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Mon Oct 4 22:57:41 2010 +0100
+
+    handle incomplete input more gracefully
+
+commit e4a910b9bc297039d75f92b6ae6276a62eb688cf
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Wed Sep 15 23:46:10 2010 +0100
+
+    minor fixes
+
+commit 20981ecd6bc70bc32a712b68195bb3d9e21adf8d
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Wed Sep 15 18:54:28 2010 +0100
+
+    further tuning of the layout algorithm
+
+commit 1d4a5a1cf02c2e9e70fc3a0aa3dec5e9ce03bab5
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Tue Sep 14 15:56:16 2010 +0100
+
+    tune the layout algorithm a bit more
+
+commit f320da08003f2cc6a602195354f6ead986183f5a
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Mon Sep 13 23:41:49 2010 +0100
+
+    changes in preparation of a public release
+
+commit a6bfa49fccba26179a72084049606db0c03cf5b7
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Mon Sep 13 12:51:01 2010 +0100
+
+    Assorted updates.
+    
+    * add a popup menu
+    * add printing support.
+    * support for plotting more than one graph in the same plot.
+    * fixes for the layout algorithm
+
+commit eecae2a9dd6d5b26b3a3589bed61a4463e00e191
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Sun Sep 12 20:18:59 2010 +0100
+
+    rewrite the layout algorithm
+
+commit 32dfb7de7486affee0d03742c93b2b35ab57b2ea
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Sun Sep 12 14:13:39 2010 +0100
+
+    add a .gitignore file
+
+commit f0fd6e640d404f44850c043fe5196f1a069ca7f7
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Sun Sep 12 13:55:01 2010 +0100
+
+    minor fixes and cleanups
+
+commit 20486ab7dde3b63b0b30a09518448dc3fbe84d72
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Sun Sep 12 12:41:01 2010 +0100
+
+    Initial commit

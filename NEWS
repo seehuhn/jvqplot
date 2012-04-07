@@ -1,4 +1,6 @@
-  allow for empty lines in the input file (as for gnuplot)
+version 0.2 (7. April 2012)
+- empty lines in the input file separate datasets, now (as for gnuplot)
+- cosmetic fixes
 
-version 0.1 (14 September 2010)
-  initial release
+version 0.1 (14. September 2010)
+- initial release

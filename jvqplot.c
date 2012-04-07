@@ -1,6 +1,6 @@
 /* jvqplot.c - very simple data file plotting
  *
- * Copyright (C) 2010  Jochen Voss
+ * Copyright (C) 2010, 2012  Jochen Voss
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -681,7 +681,7 @@ parse_data_file(GDataInputStream *in,
     g_strfreev(words);
     g_free(line);
     if (err) break;
-    if (is_empty && n>0) break;
+    if (is_empty && rows > 0) break;
   }
 
   if (err) {
