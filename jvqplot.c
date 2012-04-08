@@ -21,536 +21,20 @@
 #endif
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <math.h>
 
 #include <gtk/gtk.h>
+
+#include "jvqplot.h"
 
 
 #define _(str) str
 
 
 static GtkWidget *window, *drawing_area;
-
-/**********************************************************************
- * store the data values
- */
-
-struct dataset {
-  double *data;
-  int rows, cols;
-};
-struct status {
-  int dataset_used;
-  struct dataset *dataset;
-  double min[2], max[2];
-  gchar *message;
-};
-struct status status_rec = {
-  .dataset_used = 0,
-  .dataset = NULL,
-  .message = NULL,
-};
-struct status *status = &status_rec;
-
-
-static void
-update_message(const gchar *message)
-{
-  g_free(status->message);
-  if (message && *message) {
-    status->message = g_strdup(message);
-  } else {
-    status->message = NULL;
-  }
-}
-
-static void
-update_data(int dataset_used, struct dataset *dataset)
-{
-  int  i, j, k;
-
-  if (dataset_used == 0) return;
-
-  for (k=0; k<status->dataset_used; ++k) g_free(status->dataset[k].data);
-  g_free(status->dataset);
-  status->dataset_used = dataset_used;
-  status->dataset = dataset;
-
-  for (j=0; j<2; ++j) {
-    status->min[j] = status->max[j] = dataset[0].data[j];
-  }
-  for (k=0; k<dataset_used; ++k) {
-    int rows = dataset[k].rows;
-    int cols = dataset[k].cols;
-    double *data = dataset[k].data;
-    for (i=0; i<rows; ++i) {
-      for (j=0; j<cols; ++j) {
-        double x = data[i*cols+j];
-        int jj = j>1 ? 1 : j;
-        if (x < status->min[jj]) status->min[jj] = x;
-        if (x > status->max[jj]) status->max[jj] = x;
-      }
-    }
-  }
-
-  for (j=0; j<2; ++j) {
-    if (status->min[j] == status->max[j]) {
-      status->min[j] -= 1;
-      status->max[j] += 1;
-    }
-    if (status->min[j] > 0 && 4*status->min[j] <= status->max[j]) {
-      /* at most extend the horizontal range by anoth 33.3% */
-      status->min[j] = 0;
-    }
-    if (status->max[j] < 0 && 2*status->max[j] >= status->min[j]) {
-      /* at most double the vertical range */
-      status->max[j] = 0;
-    }
-  }
-
-  update_message(NULL);
-}
-
-/**********************************************************************
- * graph layout handling
- */
-
-static double xres = -1, yres;
-
-static double
-log_mod(double x, double *base)
-/* This function returns `x', scaled by a signed power of ten
- * (`base'), such that the result fullfills `1 <= result < 10' and
- * `x=result*base'.  */
-{
-  double  s, tmp, y;
-
-  g_assert(x != 0);
-  s = (x>0) ? 1 : -1;
-
-  tmp = floor(log10(s*x));
-  *base = s*pow(10, tmp);
-  y = x / *base;
-  g_assert(1<=y && y<10);
-
-  return  y;
-}
-
-static double
-stepsize(double w, int *mult_ret)
-{
-  double  base, frac, size;
-
-  g_assert(w>0);
-
-  frac = log_mod(2*w, &base);
-  if (frac < 2) {
-    frac = 1;
-    *mult_ret = 5;
-  } else if (frac < 2.5) {
-    frac = 2;
-    *mult_ret = 5;
-  } else if (frac < 5) {
-    frac = 2.5;
-    *mult_ret = 4;
-  } else {
-    frac = 5;
-    *mult_ret = 5;
-  }
-  size = frac * base;
-
-  g_assert(w < size && size <= 2*w);
-  return  size;
-}
-
-static void
-normalize(double a, double b, double d, double *aa, double *bb)
-/* Input is an interval `[a;b]' and a tick distance `d'.  The function
- * computes an interval `[aa,bb]' which contains `[a,b]' such that
- * `aa' and `bb' are integer multiples of `dd'.  */
-{
-  g_assert(b>a && d>0);
-
-  *aa = floor(a/d) * d;
-  *bb = ceil(b/d) * d;
-
-  g_assert(*aa<=a && *bb>=b);
-}
-
-struct layout {
-  int width, height;
-  double ax, ay, bx, by;
-  double dx, dy;
-  int xmult, ymult;
-};
-
-struct layout *
-new_layout(int w_pix, int h_pix, double xres, double yres,
-           double xmin, double xmax, double ymin, double ymax)
-{
-  /* physical layout dimensions */
-  double w_phys = w_pix/xres;
-  double h_phys = h_pix/yres;
-  double tgap_phys = 7/72.27;
-  double rgap_phys = 7/72.27;
-  double bgap_phys = (h_phys>1) ? 20/72.27 : 7/72.27;
-  double lgap_phys = (w_phys>1.5) ? .5 : 7/72.27;
-
-  /* grid spacing */
-  double n_xlab = (w_phys-lgap_phys-rgap_phys)*2.54; /* <= 1 grid line / cm */
-  double n_ylab = (h_phys-tgap_phys-bgap_phys)*2.54;
-  double x0, x1, dx, y0, y1, dy, xscale, yscale, dz, scale;
-  int xmult, ymult;
-  dx = stepsize((xmax-xmin)/n_xlab, &xmult);
-  dy = stepsize((ymax-ymin)/n_ylab, &ymult);
-
-  /* check whether 1:1 aspect ratio is acceptable */
-  dz = MAX(dx, dy);
-  normalize(xmin, xmax, dz, &x0, &x1);
-  normalize(ymin, ymax, dz, &y0, &y1);
-  xscale = (w_phys-lgap_phys-rgap_phys) / (x1-x0);
-  yscale = (h_phys-tgap_phys-bgap_phys) / (y1-y0);
-  scale = MIN(xscale, yscale);
-  if (scale*(xmax-xmin) >= .6*w_phys && scale*(ymax-ymin) >= .2*h_phys) {
-    /* yes, we can use 1:1 */
-    if (dx >= dy) {
-      dy = dx;
-      ymult = xmult;
-    } else {
-      dx = dy;
-      xmult = ymult;
-    }
-    xscale = yscale = scale;
-  } else {
-    /* no, use independent scales */
-    normalize(xmin, xmax, dx, &x0, &x1);
-    normalize(ymin, ymax, dy, &y0, &y1);
-    xscale = (w_phys-lgap_phys-rgap_phys) / (x1-x0);
-    yscale = (h_phys-tgap_phys-bgap_phys) / (y1-y0);
-  }
-
-  double xpos = (w_phys-lgap_phys-rgap_phys-xscale*(x1-x0))/2 + lgap_phys;
-  double ypos = (h_phys-tgap_phys-bgap_phys-yscale*(y1-y0))/2 + bgap_phys;
-
-  struct layout *L = g_new(struct layout, 1);
-  L->width = w_pix;
-  L->height = h_pix;
-  L->ax = xscale*xres;
-  L->bx = (xpos - x0*xscale)*xres;
-  L->dx = dx;
-  L->xmult = xmult;
-  L->ay = -yscale*yres;
-  L->by = h_pix - (ypos - y0*yscale)*yres;
-  L->dy = dy;
-  L->ymult = ymult;
-
-  return L;
-}
-
-static void
-delete_layout(struct layout *L)
-{
-  g_free(L);
-}
-
-/**********************************************************************
- * draw the graph
- */
-
-static struct {
-  double r, g, b;
-} colors[100] = {
-  { 0.929688, 0.054688, 0.226562},
-  { 0.027344, 0.597656, 0.238281},
-  { 0.039062, 0.132812, 0.929688},
-  { 0.750000, 0.250000, 0.750000},
-  { 0.375000, 0.375000, 0.625000},
-  { 0.625000, 0.125000, 0.375000},
-  { 0.187500, 0.312500, 0.312500},
-  { 0.937500, 0.062500, 0.562500},
-  { 0.437500, 0.562500, 0.062500},
-  { 0.312500, 0.187500, 0.937500},
-  { 0.562500, 0.437500, 0.187500},
-  { 0.093750, 0.468750, 0.843750},
-  { 0.843750, 0.218750, 0.093750},
-  { 0.468750, 0.093750, 0.468750},
-  { 0.718750, 0.343750, 0.718750},
-  { 0.156250, 0.156250, 0.531250},
-  { 0.281250, 0.281250, 0.156250},
-  { 0.531250, 0.031250, 0.906250},
-  { 0.031250, 0.531250, 0.406250},
-  { 0.046875, 0.265625, 0.609375},
-  { 0.796875, 0.015625, 0.359375},
-  { 0.296875, 0.515625, 0.859375},
-  { 0.421875, 0.140625, 0.234375},
-  { 0.234375, 0.078125, 0.796875},
-  { 0.984375, 0.328125, 0.046875},
-  { 0.359375, 0.453125, 0.421875},
-  { 0.609375, 0.203125, 0.671875},
-  { 0.109375, 0.703125, 0.171875},
-  { 0.078125, 0.234375, 0.265625},
-  { 0.453125, 0.359375, 0.890625},
-  { 0.703125, 0.109375, 0.140625},
-  { 0.203125, 0.609375, 0.640625},
-  { 0.140625, 0.421875, 0.078125},
-  { 0.890625, 0.171875, 0.828125},
-  { 0.265625, 0.046875, 0.703125},
-  { 0.515625, 0.296875, 0.453125},
-  { 0.023438, 0.398438, 0.445312},
-  { 0.773438, 0.148438, 0.695312},
-  { 0.273438, 0.648438, 0.195312},
-  { 0.398438, 0.023438, 0.820312},
-  { 0.648438, 0.273438, 0.070312},
-  { 0.210938, 0.210938, 0.132812},
-  { 0.335938, 0.335938, 0.507812},
-  { 0.585938, 0.085938, 0.257812},
-  { 0.085938, 0.585938, 0.757812},
-  { 0.117188, 0.117188, 0.664062},
-  { 0.492188, 0.492188, 0.039062},
-  { 0.742188, 0.242188, 0.789062},
-  { 0.179688, 0.304688, 0.976562},
-  { 0.304688, 0.179688, 0.351562},
-  { 0.554688, 0.429688, 0.601562},
-  { 0.789062, 0.382812, 0.179688},
-  { 0.414062, 0.257812, 0.304688},
-  { 0.664062, 0.007812, 0.554688},
-  { 0.164062, 0.507812, 0.054688},
-  { 0.226562, 0.445312, 0.742188},
-  { 0.976562, 0.195312, 0.492188},
-  { 0.351562, 0.070312, 0.117188},
-  { 0.601562, 0.320312, 0.867188},
-  { 0.070312, 0.351562, 0.210938},
-  { 0.820312, 0.101562, 0.960938},
-  { 0.445312, 0.226562, 0.585938},
-  { 0.132812, 0.039062, 0.398438},
-  { 0.257812, 0.414062, 0.773438},
-  { 0.507812, 0.164062, 0.023438},
-  { 0.007812, 0.664062, 0.523438},
-  { 0.011719, 0.332031, 0.785156},
-  { 0.761719, 0.082031, 0.035156},
-  { 0.261719, 0.582031, 0.535156},
-  { 0.386719, 0.207031, 0.410156},
-  { 0.199219, 0.019531, 0.597656},
-  { 0.949219, 0.269531, 0.347656},
-  { 0.324219, 0.394531, 0.222656},
-  { 0.574219, 0.144531, 0.972656},
-  { 0.074219, 0.644531, 0.472656},
-  { 0.105469, 0.175781, 0.066406},
-  { 0.480469, 0.300781, 0.691406},
-  { 0.730469, 0.050781, 0.441406},
-  { 0.230469, 0.550781, 0.941406},
-  { 0.167969, 0.488281, 0.253906},
-  { 0.917969, 0.238281, 0.503906},
-  { 0.292969, 0.113281, 0.878906},
-  { 0.542969, 0.363281, 0.128906},
-  { 0.058594, 0.066406, 0.332031},
-  { 0.808594, 0.316406, 0.582031},
-  { 0.433594, 0.441406, 0.957031},
-  { 0.683594, 0.191406, 0.207031},
-  { 0.246094, 0.253906, 0.019531},
-  { 0.996094, 0.003906, 0.769531},
-  { 0.496094, 0.503906, 0.269531},
-  { 0.371094, 0.128906, 0.644531},
-  { 0.621094, 0.378906, 0.394531},
-  { 0.089844, 0.410156, 0.550781},
-  { 0.839844, 0.160156, 0.300781},
-  { 0.464844, 0.035156, 0.175781},
-  { 0.714844, 0.285156, 0.925781},
-  { 0.152344, 0.222656, 0.863281},
-  { 0.277344, 0.347656, 0.488281},
-  { 0.527344, 0.097656, 0.738281},
-  { 0.500000, 0.500000, 0.500000},
-};
-
-static void
-draw_graph(cairo_t *cr, struct layout *L, gboolean is_screen)
-{
-  int i, j, k;
-
-  cairo_set_source_rgb(cr, 1.0, 1.0, 1.0);
-  cairo_paint(cr);
-
-  if (! status->dataset_used)
-    goto draw_message;
-
-  /* minor grid lines */
-  cairo_set_line_width(cr, 1);
-  cairo_set_source_rgb(cr, 0.85, 0.85, 0.85);
-  for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
-    double wx = L->ax*i*L->dx + L->bx;
-    if (wx > L->width) break;
-    if (i%L->xmult == 0) continue;
-    if (is_screen) wx = floor(wx) + .5;
-    cairo_move_to(cr, wx, 0);
-    cairo_line_to(cr, wx, L->height);
-  }
-  for (i=ceil((L->height-L->by)/L->ay/L->dy); ; ++i) {
-    double wy = L->ay*i*L->dy + L->by;
-    if (wy < 0) break;
-    if (i%L->ymult == 0) continue;
-    if (is_screen) wy = floor(wy) + .5;
-    cairo_move_to(cr, 0, wy);
-    cairo_line_to(cr, L->width, wy);
-  }
-  cairo_stroke(cr);
-
-  /* major grid lines */
-  cairo_set_line_width(cr, 2);
-  cairo_set_source_rgb(cr, 0.7, 0.7, 0.7);
-  for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
-    double wx = L->ax*i*L->dx + L->bx;
-    if (wx > L->width) break;
-    if (i%L->xmult) continue;
-    if (is_screen) wx = floor(wx) + .5;
-    cairo_move_to(cr, wx, 0);
-    cairo_line_to(cr, wx, L->height);
-  }
-  for (i=ceil((L->height-L->by)/L->ay/L->dy); ; ++i) {
-    double wy = L->ay*i*L->dy + L->by;
-    if (wy < 0) break;
-    if (i%L->ymult) continue;
-    if (is_screen) wy = floor(wy) + .5;
-    cairo_move_to(cr, 0, wy);
-    cairo_line_to(cr, L->width, wy);
-  }
-  cairo_stroke(cr);
-
-  /* grid labels */
-  cairo_select_font_face(cr, "sans-serif",
-                         CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-  cairo_set_font_size(cr, 12.0);
-  for (i=ceil(-L->bx/L->ax/L->dx); ; ++i) {
-    double wx = L->ax*i*L->dx + L->bx;
-    if (wx > L->width) break;
-    if (i%L->xmult) continue;
-    if (is_screen) wx = floor(wx) + .5;
-
-    char buffer[32];
-    snprintf(buffer, 32, "%g", i*L->dx);
-
-    cairo_text_extents_t te;
-    cairo_text_extents(cr, buffer, &te);
-
-    double xpos = wx - te.x_bearing - .5*te.width;
-    if (xpos+te.x_bearing+te.width+2 > L->width) {
-      /* make sure the right-most label is visible */
-      xpos = L->width-te.x_bearing-te.width-2;
-    }
-    cairo_rectangle(cr, xpos+te.x_bearing-2, L->height-8+te.y_bearing-2,
-                    te.width+4, te.height+4);
-    cairo_set_source_rgba(cr, 1, 1, 1, .8);
-    cairo_fill(cr);
-
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    cairo_move_to(cr, xpos, L->height-8);
-    cairo_show_text(cr, buffer);
-  }
-  for (i=ceil((L->height-L->by)/L->ay/L->dy); ; ++i) {
-    double wy = L->ay*i*L->dy + L->by;
-    if (wy < 0) break;
-    if (i%L->ymult) continue;
-    if (is_screen) wy = floor(wy) + .5;
-
-    char buffer[32];
-    snprintf(buffer, 32, "%g", i*L->dy);
-
-    cairo_text_extents_t te;
-    cairo_text_extents(cr, buffer, &te);
-
-    cairo_rectangle(cr, 8+te.x_bearing-2, wy+4+te.y_bearing-2,
-                    te.width+4, te.height+4);
-    cairo_set_source_rgba(cr, 1, 1, 1, .8);
-    cairo_fill(cr);
-
-    cairo_set_source_rgb(cr, 0, 0, 0);
-    cairo_move_to(cr, 8, wy+4);
-    cairo_show_text(cr, buffer);
-  }
-
-  /* graphs for the data */
-  for (k=0; k<status->dataset_used; ++k) {
-    int cols = status->dataset[k].cols;
-    int rows = status->dataset[k].rows;
-    double *data = status->dataset[k].data;
-    for (j=1; j<cols; ++j) {
-      cairo_set_source_rgba(cr, 1, 1, 1, .5);
-      if (rows == 1) {
-        double x = data[0];
-        double y = data[j];
-        cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 6, 0, 2*M_PI);
-        cairo_close_path(cr);
-        cairo_fill(cr);
-      } else {
-        cairo_set_line_width(cr, 6);
-        cairo_set_line_join(cr, CAIRO_LINE_JOIN_ROUND);
-        cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
-        for (i=0; i<rows; ++i) {
-          double x = data[i*cols];
-          double y = data[i*cols+j];
-          double wx = L->ax*x + L->bx;
-          double wy = L->ay*y + L->by;
-          if (i == 0) {
-            cairo_move_to(cr, wx, wy);
-          } else {
-            cairo_line_to(cr, wx, wy);
-          };
-        }
-        cairo_stroke(cr);
-      }
-
-      int ci = (j-1)%100;
-      cairo_set_source_rgb(cr, colors[ci].r, colors[ci].g, colors[ci].b);
-      if (rows == 1) {
-        double x = data[0];
-        double y = data[j];
-        cairo_arc(cr, L->ax*x + L->bx, L->ay*y + L->by, 4, 0, 2*M_PI);
-        cairo_close_path(cr);
-        cairo_fill(cr);
-      } else {
-        cairo_set_line_width(cr, 2);
-        for (i=0; i<rows; ++i) {
-          double x = data[i*cols];
-          double y = data[i*cols+j];
-          double wx = L->ax*x + L->bx;
-          double wy = L->ay*y + L->by;
-          if (i == 0) {
-            cairo_move_to(cr, wx, wy);
-          } else {
-            cairo_line_to(cr, wx, wy);
-          };
-        }
-        cairo_stroke(cr);
-      }
-    }
-  }
-
- draw_message:
-  /* status messages */
-  if (status->message && is_screen) {
-    cairo_select_font_face(cr, "sans-serif",
-                           CAIRO_FONT_SLANT_NORMAL, CAIRO_FONT_WEIGHT_NORMAL);
-    cairo_set_font_size(cr, 24.0);
-
-    cairo_text_extents_t te;
-    cairo_text_extents(cr, status->message, &te);
-    double xpos = xres/2.54 - te.x_bearing;
-    double ypos = yres/2.54 - te.y_bearing;
-    cairo_rectangle(cr, xpos+te.x_bearing-2, ypos+te.y_bearing-2,
-                    te.width+4, te.height+4);
-    cairo_set_source_rgba(cr, 1, 1, 1, .8);
-    cairo_fill(cr);
-
-    cairo_set_source_rgb(cr, .8, 0, 0);
-    cairo_move_to(cr, xpos, ypos);
-    cairo_show_text(cr, status->message);
-  }
-}
-
-/**********************************************************************
- * printing
- */
-
 static GtkPrintSettings *settings = NULL;
+
 
 static void
 print_page(GtkPrintOperation *operation, GtkPrintContext *ctx,
@@ -560,10 +44,10 @@ print_page(GtkPrintOperation *operation, GtkPrintContext *ctx,
   gdouble height = gtk_print_context_get_height(ctx);
   gdouble xres = gtk_print_context_get_dpi_x(ctx);
   gdouble yres = gtk_print_context_get_dpi_y(ctx);
-  double x0 = status->min[0];
-  double x1 = status->max[0];
-  double y0 = status->min[1];
-  double y1 = status->max[1];
+  double x0 = state->min[0];
+  double x1 = state->max[0];
+  double y0 = state->min[1];
+  double y1 = state->max[1];
 
   cairo_t *cr = gtk_print_context_get_cairo_context(ctx);
 
@@ -586,7 +70,7 @@ print_page(GtkPrintOperation *operation, GtkPrintContext *ctx,
 static void
 print_action(GtkAction *action, gpointer data)
 {
-  if (! status->dataset_used)  return;
+  if (! state->dataset_used)  return;
 
   GtkPrintOperation *print = gtk_print_operation_new();
   if (settings) gtk_print_operation_set_print_settings(print, settings);
@@ -602,100 +86,6 @@ print_action(GtkAction *action, gpointer data)
   }
 
   g_object_unref(print);
-}
-
-/**********************************************************************
- * GTK+ related functions
- */
-
-#define JVQPLOT_ERROR jvqplot_error_quark ()
-static GQuark
-jvqplot_error_quark (void)
-{
-  return g_quark_from_static_string ("jvqplot-error-quark");
-}
-#define JVQPLOT_ERROR_CORRUPTED 1
-#define JVQPLOT_ERROR_INCOMPLETE 2
-
-
-static double *
-parse_data_file(GDataInputStream *in,
-                int *rows_ret, int *cols_ret, GError **err_ret)
-{
-  GError *err = NULL;
-  int result_used = 0;
-  int result_allocated = 256;
-  double *result = g_new(double, result_allocated);
-
-  gchar *line;
-  int rows = 0;
-  int cols = 0;
-
-  while ((line = g_data_input_stream_read_line(in, NULL, NULL, &err))) {
-    gchar **words = g_strsplit_set(line, " \t", 0);
-    gboolean is_empty = ! words[0];
-    if (is_empty || words[0][0] == '#') goto next_line;
-
-    int n = 0;
-    while (words[n]) ++n;
-    if (cols == 0) {
-      cols = n;
-    } else if (n < cols
-               && g_buffered_input_stream_get_available(G_BUFFERED_INPUT_STREAM(in)) == 0) {
-      g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_INCOMPLETE,
-                  "incomplete input");
-      goto next_line;
-    } else if (cols != n) {
-      g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
-                  "invalid data (malformed matrix)");
-      goto next_line;
-    }
-
-    /* if there is only one column, prepend the index */
-    if (cols == 1) {
-      if (result_used >= result_allocated) {
-        result_allocated *= 2;
-        result = g_renew(double, result, result_allocated);
-      }
-      result[result_used++] = rows+1;
-    }
-
-    int i;
-    for (i=0; i<cols; ++i) {
-      char *endptr;
-      double x = strtod(words[i], &endptr);
-      if (*endptr) {
-        g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
-                    "invalid data (malformed number)");
-        goto next_line;
-      }
-      if (result_used >= result_allocated) {
-        result_allocated *= 2;
-        result = g_renew(double, result, result_allocated);
-      }
-      result[result_used++] = x;
-    }
-    rows += 1;
-
-  next_line:
-    g_strfreev(words);
-    g_free(line);
-    if (err) break;
-    if (is_empty && rows > 0) break;
-  }
-
-  if (err) {
-    g_propagate_error(err_ret, err);
-    if (g_error_matches(err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED)) {
-      g_free(result);
-      return NULL;
-    }
-  }
-
-  result = g_renew(double, result, result_used);
-  *rows_ret = rows;
-  *cols_ret = (cols==1) ? 2 : cols;
-  return result;
 }
 
 static gboolean
@@ -721,11 +111,11 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
 
   static struct layout *L = NULL;
 
-  if (status->dataset_used && L) {
-    double x0 = L->ax*status->min[0]+L->bx;
-    double y0 = L->ay*status->min[1]+L->by;
-    double x1 = L->ax*status->max[0]+L->bx;
-    double y1 = L->ay*status->max[1]+L->by;
+  if (state->dataset_used && L) {
+    double x0 = L->ax*state->min[0]+L->bx;
+    double y0 = L->ay*state->min[1]+L->by;
+    double x1 = L->ax*state->max[0]+L->bx;
+    double y1 = L->ay*state->max[1]+L->by;
     if (L->width != width || L->height != height
         || x0 < 0 || x0 > width || y0 < 0 || y0 > height
         || x1 < 0 || x1 > width || y1 < 0 || y1 > height
@@ -734,60 +124,15 @@ expose_event_callback(GtkWidget *widget, GdkEventExpose *event,
       L = NULL;
     }
   }
-  if (status->dataset_used && !L) {
+  if (state->dataset_used && !L) {
     L = new_layout(width, height, xres, yres,
-                   status->min[0], status->max[0],
-                   status->min[1], status->max[1]);
+                   state->min[0], state->max[0],
+                   state->min[1], state->max[1]);
   }
   draw_graph(cr, L, TRUE);
 
   cairo_destroy(cr);
   return TRUE;
-}
-
-static void
-read_data(GFile *file)
-{
-  GError *err = NULL;
-  int dataset_used = 0;
-  int dataset_allocated = 4;
-  struct dataset *dataset = g_new(struct dataset, dataset_allocated);
-  int  rows, cols;
-
-  GFileInputStream *in = g_file_read(file, NULL, &err);
-  if (err) {
-    update_message(err->message);
-    g_clear_error(&err);
-    return;
-  }
-  GDataInputStream *inn = g_data_input_stream_new(G_INPUT_STREAM(in));
-  g_object_unref(in);
-
-  double *data;
-  while ((data = parse_data_file(inn, &rows, &cols, &err))) {
-    if (dataset_used >= dataset_allocated) {
-      dataset_allocated *= 2;
-      dataset = g_renew(struct dataset, dataset, dataset_allocated);
-    }
-    dataset[dataset_used].data = data;
-    dataset[dataset_used].rows = rows;
-    dataset[dataset_used].cols = cols;
-    dataset_used += 1;
-    if (err) break;
-  }
-  if (dataset_used == 0) {
-    g_set_error(&err, JVQPLOT_ERROR, JVQPLOT_ERROR_CORRUPTED,
-                "no data found");
-  }
-
-  g_input_stream_close(G_INPUT_STREAM(inn), NULL, NULL);
-  g_object_unref(inn);
-
-  update_data(dataset_used, dataset);
-  if (err) {
-    update_message(err->message);
-    g_clear_error(&err);
-  }
 }
 
 static void
@@ -801,7 +146,7 @@ data_changed_cb(GFileMonitor *monitor, GFile *file, GFile *other_file,
     read_data(file);
     break;
   case G_FILE_MONITOR_EVENT_DELETED:
-    update_message("data file removed");
+    read_data(NULL);
     break;
   default:
     break;
@@ -832,7 +177,7 @@ popup_cb(GtkWidget *widget, GdkEventButton *event, gpointer data)
 static void
 home_action(GtkAction *action, gpointer data)
 {
-  gtk_show_uri(NULL, "http://seehuhn.de/pages/jvqplot",
+  gtk_show_uri(NULL, "http://www.seehuhn.de/pages/jvqplot",
                GDK_CURRENT_TIME, NULL);
 }
 
@@ -888,7 +233,7 @@ main(int argc, char **argv)
   GError *err = NULL;
   gboolean gui;
 
-  gboolean version_flag;
+  gboolean version_flag = FALSE;
   GOptionEntry entries[] = {
     { "version", 'v', 0, G_OPTION_ARG_NONE, &version_flag,
       "Show version information", NULL },
@@ -906,7 +251,7 @@ main(int argc, char **argv)
   }
   if (version_flag) {
     puts("jvqplot " VERSION);
-    puts("Copyright(C) 2010 Jochen Voss <voss@seehuhn.de>");
+    puts("Copyright(C) 2010, 2012 Jochen Voss <voss@seehuhn.de>");
     puts("License GPLv3+: GNU GPL version 3 or later "
          "<http://gnu.org/licenses/gpl.html>");
 

@@ -1,5 +1,6 @@
-version 0.2 (7. April 2012)
+version 0.2 (8. April 2012)
 - empty lines in the input file separate datasets, now (as for gnuplot)
+- clean up the source code and split into several files
 - cosmetic fixes
 
 version 0.1 (14. September 2010)
