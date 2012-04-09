@@ -1,3 +1,17 @@
+commit cc883c88e3dbd5d1c418077972de4458dc60a563
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Sun Apr 8 17:01:39 2012 +0100
+
+    Split the source code into several files.
+    At the same time, add a new tool to generate the pictures
+    for the web page.
+
+commit 48a92417cba8bbb042ca2c2ee2acd44d0c580222
+Author: Jochen Voss <voss@seehuhn.de>
+Date:   Sat Apr 7 19:41:10 2012 +0100
+
+    prepare for jvqplot release 0.2
+
 commit e3acf6fa6413283a1d7ff8bf8e7166df58271fc4
 Author: Jochen Voss <voss@seehuhn.de>
 Date:   Sat Mar 31 13:10:01 2012 +0100

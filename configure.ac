@@ -2,7 +2,7 @@ dnl Process this file with autoconf to produce a configure script.
 dnl Copyright 2010  Jochen Voss
 
 dnl Process this file with autoconf to produce a configure script.
-AC_INIT(jvqplot, 0.2, voss@seehuhn.de)
+AC_INIT(jvqplot, 0.2, voss@seehuhn.de, [], [http://www.seehuhn.de/pages/jvqplot])
 AC_CONFIG_SRCDIR([jvqplot.c])
 AM_INIT_AUTOMAKE
 AM_CONFIG_HEADER(config.h)
