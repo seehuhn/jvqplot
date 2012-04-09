@@ -1,0 +1,4 @@
+- bug fix:
+  ERROR:jvqplot.c:171:normalize: assertion failed: (*aa<=a && *bb>=b)
+- autodetect when to use a log scale
+- autodetect when there is too much data
